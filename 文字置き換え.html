@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h2>文章の置き換え</h2>
+
+<textarea id="myText" rows="4" cols="50">
+ここに文章を入力してください。
+</textarea>
+
+<br><br>
+
+<input type="text" id="oldWord" placeholder="置き換えたい言葉">
+<input type="text" id="newWord" placeholder="新しい言葉">
+
+<br><br>
+
+<button onclick="replaceWord()">置き換える</button>
+
+<br><br>
+
+<textarea id="result" rows="4" cols="50"></textarea>
+
+<script>
+function replaceWord() {
+  var text = document.getElementById("myText").value;
+  var oldWord = document.getElementById("oldWord").value;
+  var newWord = document.getElementById("newWord").value;
+  var newText = text.split(oldWord).join(newWord);
+  document.getElementById("result").value = newText;
+}
+</script>
+
+</body>
+</html>
