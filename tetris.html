@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>テトリス</title>
+<style>
+#container {
+  position: relative;
+  margin: auto;
+  width: 90vw;
+  height: 90vh;
+  max-width: 320px;
+  max-height: 640px;
+}
+#main-canvas {
+  display: block;
+  margin: auto;
+  border: 2px solid #000;
+  width: 100%;
+  height: auto;
+  max-width: 320px;
+  max-height: 640px;
+}
+#start-btn {
+  display: block;
+  margin: 20px auto;
+  padding: 10px 20px;
+  background-color: #007BFF;
+  color: #fff;
+  font-size: 16px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  max-width: 100%;
+}
+#left-arrow, #right-arrow {
+  position: absolute;
+  top: 50%;
+  width: 50px;
+  height: 50px;
+  background-color: rgba(128, 128, 128, 0.5);
+  clip-path: polygon(50% 0%, 50% 100%, 100% 100%, 100% 0%);
+  cursor: pointer;
+}
+#left-arrow {
+  left: 10px;
+}
+#right-arrow {
+  right: 10px;
+  transform: rotate(180deg);
+}
+#score-container {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: #000;
+  background-color: #fff;
+  padding: 10px;
+  border-radius: 5px;
+  text-align: right;
+  font-size: 16px;
+}
+@media (orientation: landscape) {
+  #container {
+    width: 50vw;
+    height: 90vh;
+    max-width: 640px;
+    max-height: 320px;
+  }
+  #main-canvas {
+    width: 100%;
+    height: auto;
+  }
+  #start-btn {
+    margin: 10px auto;
+  }
+  #left-arrow, #right-arrow {
+    top: 40%;
+  }
+}
+</style>
+</head>
+<body>
+<div id="container">
+  <div id="score-container">
+    <div id="score">スコア: 0</div>
+    <div id="level">レベル: 1</div>
+  </div>
+  <canvas id="main-canvas" width="320" height="640"></canvas>
+  <button id="start-btn">開始</button>
+  <div id="left-arrow" class="arrow"></div>
+  <div id="right-arrow" class="arrow"></div>
+</div>
+<script>
+const canvas = document.getElementById('main-canvas');
+const ctx = canvas.getContext('2d');
+const BLOCK_SIZE = 32;
+const ROWS = 20;
+const COLS = 10;
+const COLORS = ['#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'];
+const SHAPES = [
+  [[1, 1, 1, 1]],  // I
+  [[1, 1], [1, 1]], // O
+  [[1, 1, 1], [0, 1, 0]], // T
+  [[1, 1, 1], [1, 0, 0]], // L
+  [[1, 1, 1], [0, 0, 1]], // J
+  [[0, 1, 1], [1, 1, 0]], // S
+  [[1, 1, 0], [0, 1, 1]]  // Z
+];
+let field = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+let current;
+let timer;
+let score = 0;
+let level = 1;
+let linesCleared = 0;
+
+document.getElementById('start-btn').onclick = () => {
+  startGame();
+}
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key) {
+    case 'ArrowLeft':
+    case 'a':
+      moveBlock(-1, 0);
+      break;
+    case 'ArrowRight':
+    case 'd':
+      moveBlock(1, 0);
+      break;
+    case 'ArrowDown':
+    case 's':
+      moveBlock(0, 1);
+      break;
+    case 'ArrowUp':
+    case 'w':
+      rotateBlock();
+      break;
+  }
+  draw();
+});
+
+document.getElementById('left-arrow').onclick = () => {
+  moveBlock(-1, 0);
+  draw();
+};
+
+document.getElementById('right-arrow').onclick = () => {
+  moveBlock(1, 0);
+  draw();
+};
+
+canvas.onclick = (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  if (x < rect.width * 0.2 || x > rect.width * 0.8) {
+    return;
+  }
+  rotateBlock();
+  draw();
+};
+
+function startGame() {
+  field = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+  spawnBlock();
+  if (timer) clearInterval(timer);
+  timer = setInterval(gameLoop, 500);
+  score = 0;
+  level = 1;
+  linesCleared = 0;
+  displayScore();
+}
+
+function gameLoop() {
+  if (!moveBlock(0, 1)) {
+    fixBlock();
+    clearLines();
+    spawnBlock();
+    if (!validMove(0, 0)) {
+      alert('ゲームオーバー');
+      clearInterval(timer);
+    }
+  }
+  draw();
+}
+
+function spawnBlock() {
+  const shapeIndex = Math.floor(Math.random() * SHAPES.length);
+  current = {
+    shape: SHAPES[shapeIndex],
+    color: COLORS[shapeIndex],
+    x: Math.floor(COLS / 2) - 1,
+    y: 0
+  };
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawField();
+  drawBlock(current);
+}
+
+function drawField() {
+  field.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value) {
+        ctx.fillStyle = value;
+        ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+      }
+    });
+  });
+}
+
+function drawBlock(block) {
+  block.shape.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value) {
+        ctx.fillStyle = block.color;
+        ctx.fillRect((block.x + x) * BLOCK_SIZE, (block.y + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+      }
+    });
+  });
+}
+
+function moveBlock(dx, dy) {
+  if (validMove(dx, dy)) {
+    current.x += dx;
+    current.y += dy;
+    return true;
+  }
+  return false;
+}
+
+function rotateBlock() {
+  const newShape = current.shape[0].map((_, i) => current.shape.map(row => row[i]).reverse());
+  const newBlock = { ...current, shape: newShape };
+  if (validMove(0, 0, newBlock)) {
+    current.shape = newShape;
+  }
+}
+
+function fixBlock() {
+  current.shape.forEach((row, y) => {
+    row.forEach((value, x) => {
+      if (value) {
+        field[current.y + y][current.x + x] = current.color;
+      }
+    });
+  });
+}
+
+function clearLines() {
+  const originalLength = field.length;
+  field = field.filter(row => !row.every(value => value));
+  const clearedLines = originalLength - field.length;
+  while (field.length < ROWS) {
+    field.unshift(Array(COLS).fill(0));
+  }
+  updateScore(clearedLines);
+}
+
+function updateScore(lines) {
+  linesCleared += lines;
+  score += lines * 100; // スコア計算
+  if (linesCleared >= level * 10) {
+    level++;
+    increaseSpeed();
+  }
+  displayScore();
+}
+
+function increaseSpeed() {
+  clearInterval(timer);
+  timer = setInterval(gameLoop, 500 - level * 50); // スピードアップ
+}
+
+function displayScore() {
+  document.getElementById('score').innerText = `スコア: ${score}`;
+  document.getElementById('level').innerText = `レベル: ${level}`;
+}
+
+function validMove(dx, dy, newBlock = current) {
+  return newBlock.shape.every((row, y) => {
+    return row.every((value, x) => {
+      if (!value) return true;
+      const newX = newBlock.x + x + dx;
+      const newY = newBlock.y + y + dy;
+      return newX >= 0 && newX < COLS && newY >= 0 && newY < ROWS && !field[newY][newX];
+    });
+  });
+}
+
+// 画面サイズと向きの変更時にキャンバスを再描画
+window.addEventListener('resize', updateCanvasSize);
+window.addEventListener('orientationchange', updateCanvasSize);
+
+function updateCanvasSize() {
+  const isPortrait = window.innerHeight > window.innerWidth;
+  if (isPortrait) {
+    document.getElementById('container').style.width = '90vw';
+    document.getElementById('container').style.height = '90vh';
+  } else {
+    document.getElementById('container').style.width = '50vw';
+    document.getElementById('container').style.height = '90vh';
+  }
+  draw();
+}
+
+window.addEventListener('resize', () => {
+  const isPortrait = window.innerHeight > window.innerWidth;
+  if (isPortrait) {
+    document.getElementById('container').style.width = '90vw';
+    document.getElementById('container').style.height = '90vh';
+  } else {
+    document.getElementById('container').style.width = '50vw';
+    document.getElementById('container').style.height = '90vh';
+  }
+  draw();
+});
+
+window.addEventListener('orientationchange', () => {
+  const isPortrait = window.innerHeight > window.innerWidth;
+  if (isPortrait) {
+    document.getElementById('container').style.width = '90vw';
+    document.getElementById('container').style.height = '90vh';
+  } else {
+    document.getElementById('container').style.width = '50vw';
+    document.getElementById('container').style.height = '90vh';
+  }
+  draw();
+});
+</script>
+</body>
+</html>
