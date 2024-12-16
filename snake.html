@@ -56,6 +56,9 @@
                 this.fpsInterval = 1000 / this.fps;
                 this.oldTimestamp = window.performance.now();
                 this.highScore = this.loadHighScore();
+                this.targetX = this.head.x;
+                this.targetY = this.head.y;
+                this.gameOver = false;
                 requestAnimationFrame(this.gameLoop.bind(this));
             }
 
@@ -96,13 +99,16 @@
             }
 
             move() {
+                if (this.gameOver) return;
+
                 const nextX = (this.head.x + this.dirx + this.nbx) % this.nbx;
                 const nextY = (this.head.y + this.diry + this.nby) % this.nby;
                 const newHead = { x: nextX, y: nextY };
 
-                if (this.elements.some(element => element.x === newHead.x && element.y === newHead.y)) {
+                if (this.elements.some((element, index) => index > 1 && element.x === newHead.x && element.y === newHead.y)) {
                     this.saveHighScore();
-                    this.init();
+                    this.gameOver = true;
+                    alert("Game Over! Score: " + this.points);
                     return;
                 }
 
@@ -130,6 +136,42 @@
                     this.draw();
                 }
                 requestAnimationFrame(this.gameLoop.bind(this));
+            }
+
+            handleMouseClick(e) {
+                const rect = this.ctx.canvas.getBoundingClientRect();
+                this.targetX = Math.floor((e.clientX - rect.left) / this.eltw);
+                this.targetY = Math.floor((e.clientY - rect.top) / this.elth);
+
+                // update direction towards target
+                const deltaX = this.targetX - this.head.x;
+                const deltaY = this.targetY - this.head.y;
+
+                if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    this.dirx = deltaX > 0 ? 1 : -1;
+                    this.diry = 0;
+                } else {
+                    this.dirx = 0;
+                    this.diry = deltaY > 0 ? 1 : -1;
+                }
+            }
+
+            handleTouchClick(e) {
+                const rect = this.ctx.canvas.getBoundingClientRect();
+                this.targetX = Math.floor((e.touches[0].clientX - rect.left) / this.eltw);
+                this.targetY = Math.floor((e.touches[0].clientY - rect.top) / this.elth);
+
+                // update direction towards target
+                const deltaX = this.targetX - this.head.x;
+                const deltaY = this.targetY - this.head.y;
+
+                if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    this.dirx = deltaX > 0 ? 1 : -1;
+                    this.diry = 0;
+                } else {
+                    this.dirx = 0;
+                    this.diry = deltaY > 0 ? 1 : -1;
+                }
             }
 
             handleKey(e) {
@@ -173,43 +215,8 @@
             canvas.height = height;
             const snake = new Snake(ctx, width, height, 30, 30, 7);
             window.addEventListener("keydown", e => snake.handleKey(e));
-            setupTouchControls(snake);
-        }
-
-        function setupTouchControls(snake) {
-            let touchStartX = 0;
-            let touchStartY = 0;
-            let touchEndX = 0;
-            let touchEndY = 0;
-
-            window.addEventListener('touchstart', function(event) {
-                touchStartX = event.changedTouches[0].screenX;
-                touchStartY = event.changedTouches[0].screenY;
-            }, false);
-
-            window.addEventListener('touchend', function(event) {
-                touchEndX = event.changedTouches[0].screenX;
-                touchEndY = event.changedTouches[0].screenY;
-                handleTouchMove(touchStartX, touchStartY, touchEndX, touchEndY, snake);
-            }, false);
-        }
-
-        function handleTouchMove(startX, startY, endX, endY, snake) {
-            const diffX = endX - startX;
-            const diffY = endY - startY;
-            if (Math.abs(diffX) > Math.abs(diffY)) {
-                if (diffX > 0 && snake.dirx === 0) {
-                    snake.handleKey({ key: "ArrowRight" });
-                } else if (diffX < 0 && snake.dirx === 0) {
-                    snake.handleKey({ key: "ArrowLeft" });
-                }
-            } else {
-                if (diffY > 0 && snake.diry === 0) {
-                    snake.handleKey({ key: "ArrowDown" });
-                } else if (diffY < 0 && snake.diry === 0) {
-                    snake.handleKey({ key: "ArrowUp" });
-                }
-            }
+            canvas.addEventListener("click", e => snake.handleMouseClick(e));
+            canvas.addEventListener("touchend", e => snake.handleTouchClick(e));
         }
 
         window.addEventListener("resize", resizeCanvas);
