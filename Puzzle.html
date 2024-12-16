@@ -140,6 +140,7 @@ let score = 0;
 let level = 1;
 let linesCleared = 0;
 let highScore = localStorage.getItem('tetrisHighScore') || 0;
+let isLockDelayActive = false;
 
 document.getElementById('start-btn').onclick = () => {
   startGame();
@@ -201,20 +202,27 @@ function startGame() {
   linesCleared = 0;
   displayScore();
   displayHighScore();
+  isLockDelayActive = false;
 }
 
 function gameLoop() {
   if (!moveBlock(0, 1)) {
-    fixBlock();
-    clearLines();
-    spawnBlock();
-    if (!validMove(0, 0)) {
-      if (score > highScore) {
-        highScore = score;
-        localStorage.setItem('tetrisHighScore', highScore);
-      }
-      alert('ゲームオーバー');
-      clearInterval(timer);
+    if (!isLockDelayActive) {
+      isLockDelayActive = true;
+      setTimeout(() => {
+        fixBlock();
+        clearLines();
+        spawnBlock();
+        if (!validMove(0, 0)) {
+          if (score > highScore) {
+            highScore = score;
+            localStorage.setItem('tetrisHighScore', highScore);
+          }
+          alert('ゲームオーバー');
+          clearInterval(timer);
+        }
+        isLockDelayActive = false;
+      }, 500); // 1秒の遅延
     }
   }
   draw();
