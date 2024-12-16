@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="board"></canvas>
+    <script>
+        function randomInteger(min, max) {
+            return Math.floor(Math.random() * (max - min)) + min;
+        }
+
+        class Snake {
+            constructor(ctx, bw, bh, nbx, nby, fps) {
+                this.ctx = ctx;
+                this.bw = bw;
+                this.bh = bh;
+                this.eltw = bw / nbx;
+                this.elth = bh / nby;
+                this.nbx = nbx;
+                this.nby = nby;
+                this.dirx = 1;
+                this.diry = 0;
+                this.marginx = this.eltw / 10;
+                this.marginy = this.elth / 10;
+                this.startfps = fps;
+                this.init();
+            }
+
+            init() {
+                this.head = { x: Math.floor(this.nbx / 2), y: Math.floor(this.nby / 2) };
+                this.tail = { x: this.head.x - 2, y: this.head.y };
+                this.elements = [
+                    this.tail,
+                    { x: this.head.x - 1, y: this.head.y },
+                    this.head
+                ];
+                this.food = this.generateFood();
+                this.points = 0;
+                this.level = 1;
+                this.fps = this.startfps;
+                this.fpsInterval = 1000 / this.fps;
+                this.oldTimestamp = window.performance.now();
+                this.highScore = this.loadHighScore();
+                requestAnimationFrame(this.gameLoop.bind(this));
+            }
+
+            generateFood() {
+                let touch = true;
+                let food = null;
+                while (touch) {
+                    food = { x: randomInteger(0, this.nbx), y: randomInteger(0, this.nby) };
+                    touch = this.elements.some(element => food.x === element.x && food.y === element.y);
+                }
+                return food;
+            }
+
+            draw() {
+                this.ctx.fillStyle = "#EFEFEF";
+                this.ctx.fillRect(0, 0, this.bw, this.bh);
+                this.ctx.font = "20px Arial";
+                this.ctx.fillStyle = "black";
+                this.ctx.fillText("High Score: " + this.highScore, 10, 30);
+                this.ctx.fillText("Score: " + this.points, this.bw - 100, 30);
+                this.ctx.fillText("Level: " + this.level, this.bw - 100, 60);
+                this.ctx.fillStyle = "green";
+                this.elements.forEach(element => {
+                    this.ctx.fillRect(
+                        element.x * this.eltw + this.marginx,
+                        element.y * this.elth + this.marginy,
+                        this.eltw - this.marginx * 2,
+                        this.elth - this.marginy * 2
+                    );
+                });
+                this.ctx.fillStyle = "red";
+                this.ctx.fillRect(
+                    this.food.x * this.eltw + this.marginx,
+                    this.food.y * this.elth + this.marginy,
+                    this.eltw - this.marginx * 2,
+                    this.elth - this.marginy * 2
+                );
+            }
+
+            move() {
+                const nextX = (this.head.x + this.dirx + this.nbx) % this.nbx;
+                const nextY = (this.head.y + this.diry + this.nby) % this.nby;
+                const newHead = { x: nextX, y: nextY };
+
+                if (this.elements.some(element => element.x === newHead.x && element.y === newHead.y)) {
+                    this.saveHighScore();
+                    this.init();
+                    return;
+                }
+
+                this.elements.push(newHead);
+                this.head = newHead;
+
+                if (this.head.x === this.food.x && this.head.y === this.food.y) {
+                    this.food = this.generateFood();
+                    this.points++;
+                    if (this.points % 5 === 0) {
+                        this.level++;
+                    }
+                    this.fps = this.startfps + Math.floor(this.points / 2);
+                    this.fpsInterval = 1000 / this.fps;
+                } else {
+                    this.elements.shift();
+                }
+            }
+
+            gameLoop(timestamp) {
+                const elapsed = timestamp - this.oldTimestamp;
+                if (elapsed > this.fpsInterval) {
+                    this.oldTimestamp = timestamp - (elapsed % this.fpsInterval);
+                    this.move();
+                    this.draw();
+                }
+                requestAnimationFrame(this.gameLoop.bind(this));
+            }
+
+            handleKey(e) {
+                switch (e.key) {
+                    case "ArrowUp":
+                    case "w":
+                        if (this.diry === 0) [this.dirx, this.diry] = [0, -1];
+                        break;
+                    case "ArrowRight":
+                    case "d":
+                        if (this.dirx === 0) [this.dirx, this.diry] = [1, 0];
+                        break;
+                    case "ArrowDown":
+                    case "s":
+                        if (this.diry === 0) [this.dirx, this.diry] = [0, 1];
+                        break;
+                    case "ArrowLeft":
+                    case "a":
+                        if (this.dirx === 0) [this.dirx, this.diry] = [-1, 0];
+                        break;
+                }
+            }
+
+            saveHighScore() {
+                if (this.points > this.highScore) {
+                    localStorage.setItem('highScore', this.points);
+                }
+            }
+
+            loadHighScore() {
+                return localStorage.getItem('highScore') || 0;
+            }
+        }
+
+        function resizeCanvas() {
+            const canvas = document.getElementById("board");
+            const ctx = canvas.getContext("2d");
+            const width = window.innerWidth * 0.9;
+            const height = window.innerHeight * 0.9;
+            canvas.width = width;
+            canvas.height = height;
+            const snake = new Snake(ctx, width, height, 30, 30, 7);
+            window.addEventListener("keydown", e => snake.handleKey(e));
+            setupTouchControls(snake);
+        }
+
+        function setupTouchControls(snake) {
+            let touchStartX = 0;
+            let touchStartY = 0;
+            let touchEndX = 0;
+            let touchEndY = 0;
+
+            window.addEventListener('touchstart', function(event) {
+                touchStartX = event.changedTouches[0].screenX;
+                touchStartY = event.changedTouches[0].screenY;
+            }, false);
+
+            window.addEventListener('touchend', function(event) {
+                touchEndX = event.changedTouches[0].screenX;
+                touchEndY = event.changedTouches[0].screenY;
+                handleTouchMove(touchStartX, touchStartY, touchEndX, touchEndY, snake);
+            }, false);
+        }
+
+        function handleTouchMove(startX, startY, endX, endY, snake) {
+            const diffX = endX - startX;
+            const diffY = endY - startY;
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                if (diffX > 0 && snake.dirx === 0) {
+                    snake.handleKey({ key: "ArrowRight" });
+                } else if (diffX < 0 && snake.dirx === 0) {
+                    snake.handleKey({ key: "ArrowLeft" });
+                }
+            } else {
+                if (diffY > 0 && snake.diry === 0) {
+                    snake.handleKey({ key: "ArrowDown" });
+                } else if (diffY < 0 && snake.diry === 0) {
+                    snake.handleKey({ key: "ArrowUp" });
+                }
+            }
+        }
+
+        window.addEventListener("resize", resizeCanvas);
+        window.addEventListener("orientationchange", resizeCanvas);
+
+        resizeCanvas();
+    </script>
+</body>
+</html>
