@@ -34,6 +34,16 @@
   cursor: pointer;
   max-width: 100%;
 }
+#drop-new-btn {
+  position: absolute;
+  top: 15px; /* 任意の位置に調整 */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50px;
+  height: 50px;
+  background-color: rgba(128, 128, 128, 0.5);
+  cursor: pointer;
+}
 #left-arrow, #right-arrow {
   position: absolute;
   top: 50%;
@@ -53,12 +63,23 @@
 #score-container {
   position: absolute;
   top: 10px;
-  right: 10px;
+  right: 10px; /* 右側に表示 */
   color: #000;
   background-color: #fff;
   padding: 10px;
   border-radius: 5px;
-  text-align: right;
+  text-align: right; /* 右側に表示 */
+  font-size: 16px;
+}
+#high-score-container {
+  position: absolute;
+  top: 10px;
+  left: 10px; /* 左側に表示 */
+  color: #000;
+  background-color: #fff;
+  padding: 10px;
+  border-radius: 5px;
+  text-align: left; /* 左側に表示 */
   font-size: 16px;
 }
 @media (orientation: landscape) {
@@ -87,10 +108,14 @@
     <div id="score">スコア: 0</div>
     <div id="level">レベル: 1</div>
   </div>
+  <div id="high-score-container">
+    <div id="high-score">ハイスコア: 0</div>
+  </div>
   <canvas id="main-canvas" width="320" height="640"></canvas>
   <button id="start-btn">開始</button>
   <div id="left-arrow" class="arrow"></div>
   <div id="right-arrow" class="arrow"></div>
+  <div id="drop-new-btn"></div>
 </div>
 <script>
 const canvas = document.getElementById('main-canvas');
@@ -114,10 +139,15 @@ let timer;
 let score = 0;
 let level = 1;
 let linesCleared = 0;
+let highScore = localStorage.getItem('tetrisHighScore') || 0;
 
 document.getElementById('start-btn').onclick = () => {
   startGame();
 }
+
+document.getElementById('drop-new-btn').onclick = () => {
+  dropBlock();
+};
 
 document.addEventListener('keydown', (e) => {
   switch(e.key) {
@@ -170,6 +200,7 @@ function startGame() {
   level = 1;
   linesCleared = 0;
   displayScore();
+  displayHighScore();
 }
 
 function gameLoop() {
@@ -178,10 +209,19 @@ function gameLoop() {
     clearLines();
     spawnBlock();
     if (!validMove(0, 0)) {
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('tetrisHighScore', highScore);
+      }
       alert('ゲームオーバー');
       clearInterval(timer);
     }
   }
+  draw();
+}
+
+function dropBlock() {
+  while (moveBlock(0, 1)) {}
   draw();
 }
 
@@ -280,6 +320,10 @@ function displayScore() {
   document.getElementById('level').innerText = `レベル: ${level}`;
 }
 
+function displayHighScore() {
+  document.getElementById('high-score').innerText = `ハイスコア: ${highScore}`;
+}
+
 function validMove(dx, dy, newBlock = current) {
   return newBlock.shape.every((row, y) => {
     return row.every((value, x) => {
@@ -307,29 +351,54 @@ function updateCanvasSize() {
   draw();
 }
 
-window.addEventListener('resize', () => {
-  const isPortrait = window.innerHeight > window.innerWidth;
-  if (isPortrait) {
-    document.getElementById('container').style.width = '90vw';
-    document.getElementById('container').style.height = '90vh';
-  } else {
-    document.getElementById('container').style.width = '50vw';
-    document.getElementById('container').style.height = '90vh';
-  }
-  draw();
-});
+// サービスワーカーの登録とキャッシュ
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    const serviceWorkerCode = `
+      const CACHE_NAME = 'tetris-cache-v1';
+      const urlsToCache = [
+        '/',
+        '/index.html',
+        '/style.css',
+        '/script.js'
+      ];
 
-window.addEventListener('orientationchange', () => {
-  const isPortrait = window.innerHeight > window.innerWidth;
-  if (isPortrait) {
-    document.getElementById('container').style.width = '90vw';
-    document.getElementById('container').style.height = '90vh';
-  } else {
-    document.getElementById('container').style.width = '50vw';
-    document.getElementById('container').style.height = '90vh';
-  }
-  draw();
-});
+      self.addEventListener('install', event => {
+        event.waitUntil(
+          caches.open(CACHE_NAME)
+            .then(cache => {
+              return cache.addAll(urlsToCache);
+            })
+        );
+      });
+
+      self.addEventListener('fetch', event => {
+        event.respondWith(
+          caches.match(event.request)
+            .then(response => {
+              if (response) {
+                return response;
+              }
+              return fetch(event.request);
+            })
+        );
+      });
+    `;
+
+    // Blobでサービスワーカーのコードを作成
+    const blob = new Blob([serviceWorkerCode], { type: 'application/javascript' });
+    const blobURL = URL.createObjectURL(blob);
+
+    navigator.serviceWorker.register(blobURL).then(registration => {
+      console.log('ServiceWorker registration successful with scope: ', registration.scope);
+    }).catch(error => {
+      console.log('ServiceWorker registration failed: ', error);
+    });
+  });
+}
+
+updateCanvasSize();
+displayHighScore();
 </script>
 </body>
 </html>
